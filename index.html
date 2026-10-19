@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>讀書番茄鐘</title>
+<style>
+  :root {
+    --bg: #fdf6f0;
+    --card: #ffffff;
+    --text: #2d2a26;
+    --muted: #8a817a;
+    --focus: #e4572e;
+    --short: #2e9e6b;
+    --long: #3a6ea5;
+    --ring-bg: #efe6de;
+    --accent: var(--focus);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1a18;
+      --card: #272421;
+      --text: #f2ede8;
+      --muted: #a39b93;
+      --ring-bg: #3a3632;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: -apple-system, "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    justify-content: center;
+    padding: 24px 16px;
+    transition: background .4s;
+  }
+  .app { width: 100%; max-width: 420px; }
+  h1 { font-size: 1.5rem; text-align: center; margin: 8px 0 20px; }
+  .card {
+    background: var(--card);
+    border-radius: 20px;
+    padding: 24px;
+    box-shadow: 0 4px 20px rgba(0,0,0,.06);
+    margin-bottom: 16px;
+  }
+  .modes { display: flex; gap: 8px; justify-content: center; margin-bottom: 20px; }
+  .mode {
+    border: none; background: transparent; color: var(--muted);
+    padding: 8px 14px; border-radius: 999px; font-size: .95rem; cursor: pointer;
+  }
+  .mode.active { background: var(--accent); color: #fff; }
+  .ring-wrap { position: relative; width: 240px; height: 240px; margin: 0 auto; }
+  .ring-wrap svg { transform: rotate(-90deg); }
+  .ring-bg { stroke: var(--ring-bg); }
+  .ring-fg { stroke: var(--accent); transition: stroke-dashoffset .3s linear, stroke .4s; }
+  .time {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+  }
+  .time .digits { font-size: 3.4rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .time .label { color: var(--muted); font-size: .9rem; margin-top: 4px; }
+  .task {
+    width: 100%; margin-top: 20px; padding: 12px 14px; font-size: 1rem;
+    border: 1px solid var(--ring-bg); border-radius: 12px;
+    background: transparent; color: var(--text); text-align: center;
+  }
+  .controls { display: flex; gap: 12px; justify-content: center; margin-top: 20px; }
+  .btn {
+    border: none; border-radius: 14px; padding: 12px 20px; font-size: 1rem;
+    cursor: pointer; background: var(--ring-bg); color: var(--text);
+  }
+  .btn.primary { background: var(--accent); color: #fff; min-width: 120px; font-weight: 600; }
+  .btn:active { transform: scale(.97); }
+  .stats { display: flex; justify-content: space-around; text-align: center; }
+  .stats .num { font-size: 1.8rem; font-weight: 700; }
+  .stats .cap { color: var(--muted); font-size: .85rem; }
+  .tomatoes { text-align: center; font-size: 1.4rem; margin-top: 12px; min-height: 1.6em; letter-spacing: 2px; }
+  details summary { cursor: pointer; font-weight: 600; }
+  .settings { display: grid; grid-template-columns: 1fr auto; gap: 10px 12px; margin-top: 14px; align-items: center; }
+  .settings input[type=number] {
+    width: 70px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--ring-bg);
+    background: transparent; color: var(--text); font-size: 1rem; text-align: center;
+  }
+  .log { list-style: none; padding: 0; margin: 12px 0 0; max-height: 180px; overflow-y: auto; }
+  .log li { padding: 6px 0; border-bottom: 1px dashed var(--ring-bg); font-size: .9rem; display: flex; justify-content: space-between; gap: 8px; }
+  .log li span:last-child { color: var(--muted); white-space: nowrap; }
+  .empty { color: var(--muted); font-size: .9rem; text-align: center; margin-top: 12px; }
+  .link-btn { background: none; border: none; color: var(--muted); text-decoration: underline; cursor: pointer; font-size: .85rem; margin-top: 10px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>🍅 讀書番茄鐘</h1>
+
+  <div class="card">
+    <div class="modes">
+      <button class="mode active" data-mode="focus">專注</button>
+      <button class="mode" data-mode="short">短休息</button>
+      <button class="mode" data-mode="long">長休息</button>
+    </div>
+
+    <div class="ring-wrap">
+      <svg width="240" height="240" viewBox="0 0 240 240">
+        <circle class="ring-bg" cx="120" cy="120" r="106" fill="none" stroke-width="14"/>
+        <circle class="ring-fg" id="ring" cx="120" cy="120" r="106" fill="none" stroke-width="14" stroke-linecap="round"/>
+      </svg>
+      <div class="time">
+        <div class="digits" id="digits">25:00</div>
+        <div class="label" id="label">準備開始專注</div>
+      </div>
+    </div>
+
+    <input class="task" id="task" placeholder="這一輪要讀什麼？（例如：C++ 第 7 章）" maxlength="40">
+
+    <div class="controls">
+      <button class="btn" id="resetBtn">重設</button>
+      <button class="btn primary" id="startBtn">開始</button>
+      <button class="btn" id="skipBtn">跳過</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="stats">
+      <div><div class="num" id="countToday">0</div><div class="cap">今日完成</div></div>
+      <div><div class="num" id="minutesToday">0</div><div class="cap">專注分鐘</div></div>
+      <div><div class="num" id="goalText">0/8</div><div class="cap">今日目標</div></div>
+    </div>
+    <div class="tomatoes" id="tomatoes"></div>
+  </div>
+
+  <div class="card">
+    <details>
+      <summary>今日紀錄</summary>
+      <ul class="log" id="log"></ul>
+      <div class="empty" id="logEmpty">還沒有完成的番茄，開始第一輪吧！</div>
+      <button class="link-btn" id="clearBtn">清除今日紀錄</button>
+    </details>
+  </div>
+
+  <div class="card">
+    <details>
+      <summary>設定</summary>
+      <div class="settings">
+        <label for="setFocus">專注時間（分鐘）</label><input type="number" id="setFocus" min="1" max="90">
+        <label for="setShort">短休息（分鐘）</label><input type="number" id="setShort" min="1" max="30">
+        <label for="setLong">長休息（分鐘）</label><input type="number" id="setLong" min="1" max="60">
+        <label for="setEvery">每幾輪長休息一次</label><input type="number" id="setEvery" min="2" max="8">
+        <label for="setGoal">每日目標（顆）</label><input type="number" id="setGoal" min="1" max="20">
+      </div>
+    </details>
+  </div>
+</div>
+
+<script>
+// ---------- 設定與資料 ----------
+const DEFAULTS = { focus: 25, short: 5, long: 15, every: 4, goal: 8 };
+const COLORS = { focus: '--focus', short: '--short', long: '--long' };
+const LABELS = { focus: '專注中', short: '短休息中', long: '長休息中' };
+
+function load(key, fallback) {
+  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
+  catch (e) { return fallback; }
+}
+function save(key, value) {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
+}
+function todayKey() {
+  const d = new Date();
+  return 'pomo-' + d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
+}
+
+let settings = Object.assign({}, DEFAULTS, load('pomo-settings', {}));
+let log = load(todayKey(), []);   // 今日完成紀錄
+let mode = 'focus';
+let total = settings.focus * 60;  // 這一輪總秒數
+let remaining = total;            // 剩餘秒數
+let timer = null;
+let endTime = 0;
+let focusSinceLong = 0;           // 距離上次長休息完成了幾輪
+
+// ---------- 畫面元素 ----------
+const $ = id => document.getElementById(id);
+const ring = $('ring');
+const CIRC = 2 * Math.PI * 106;
+ring.style.strokeDasharray = CIRC;
+
+// ---------- 畫面更新 ----------
+function fmt(sec) {
+  const m = Math.floor(sec / 60), s = sec % 60;
+  return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+}
+function render() {
+  $('digits').textContent = fmt(remaining);
+  ring.style.strokeDashoffset = CIRC * (1 - remaining / total);
+  document.title = (timer ? fmt(remaining) + ' · ' : '') + '讀書番茄鐘';
+  $('startBtn').textContent = timer ? '暫停' : (remaining < total ? '繼續' : '開始');
+  $('label').textContent = timer ? LABELS[mode] : (remaining < total ? '已暫停' : '準備開始' + (mode === 'focus' ? '專注' : '休息'));
+}
+function renderStats() {
+  const count = log.length;
+  const mins = log.reduce((a, r) => a + r.minutes, 0);
+  $('countToday').textContent = count;
+  $('minutesToday').textContent = mins;
+  $('goalText').textContent = count + '/' + settings.goal;
+  $('tomatoes').textContent = '🍅'.repeat(Math.min(count, 20)) + (count >= settings.goal ? ' 🎉' : '');
+  const ul = $('log');
+  ul.innerHTML = '';
+  log.slice().reverse().forEach(r => {
+    const li = document.createElement('li');
+    const a = document.createElement('span'); a.textContent = '🍅 ' + (r.task || '未命名');
+    const b = document.createElement('span'); b.textContent = r.time + ' · ' + r.minutes + ' 分';
+    li.append(a, b); ul.appendChild(li);
+  });
+  $('logEmpty').style.display = log.length ? 'none' : 'block';
+}
+function setMode(m) {
+  stop();
+  mode = m;
+  total = settings[m] * 60;
+  remaining = total;
+  document.documentElement.style.setProperty('--accent', `var(${COLORS[m]})`);
+  document.querySelectorAll('.mode').forEach(b => b.classList.toggle('active', b.dataset.mode === m));
+  render();
+}
+
+// ---------- 計時 ----------
+function start() {
+  endTime = Date.now() + remaining * 1000;   // 用結束時間計算，切換分頁也不會跑慢
+  timer = setInterval(tick, 250);
+  render();
+}
+function stop() {
+  clearInterval(timer);
+  timer = null;
+  render();
+}
+function tick() {
+  remaining = Math.max(0, Math.round((endTime - Date.now()) / 1000));
+  render();
+  if (remaining === 0) finish(true);
+}
+function finish(completed) {
+  stop();
+  beep();
+  if (mode === 'focus') {
+    if (completed) {
+      const d = new Date();
+      log.push({ task: $('task').value.trim(), minutes: settings.focus,
+                 time: String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') });
+      save(todayKey(), log);
+      renderStats();
+    }
+    focusSinceLong++;
+    if (focusSinceLong >= settings.every) { focusSinceLong = 0; setMode('long'); }
+    else setMode('short');
+  } else {
+    setMode('focus');
+  }
+}
+
+// ---------- 提示音 ----------
+function beep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [0, 0.35, 0.7].forEach(t => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.frequency.value = 880; o.connect(g); g.connect(ctx.destination);
+      g.gain.setValueAtTime(0.25, ctx.currentTime + t);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.3);
+      o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + 0.3);
+    });
+  } catch (e) {}
+}
+
+// ---------- 事件 ----------
+$('startBtn').onclick = () => timer ? stop() : start();
+$('resetBtn').onclick = () => setMode(mode);
+$('skipBtn').onclick = () => finish(false);
+document.querySelectorAll('.mode').forEach(b => b.onclick = () => setMode(b.dataset.mode));
+$('clearBtn').onclick = () => {
+  if (log.length && confirm('確定要清除今天的紀錄嗎？')) { log = []; save(todayKey(), log); renderStats(); }
+};
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space' && e.target.tagName !== 'INPUT') { e.preventDefault(); $('startBtn').click(); }
+});
+
+['focus', 'short', 'long', 'every', 'goal'].forEach(k => {
+  const input = $('set' + k[0].toUpperCase() + k.slice(1));
+  input.value = settings[k];
+  input.onchange = () => {
+    const v = parseInt(input.value, 10);
+    if (v >= +input.min && v <= +input.max) settings[k] = v; else input.value = settings[k];
+    save('pomo-settings', settings);
+    renderStats();
+    if (!timer && remaining === total) setMode(mode);
+  };
+});
+
+setMode('focus');
+renderStats();
+</script>
+</body>
+</html>
